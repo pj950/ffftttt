@@ -1,0 +1,128 @@
+# Futu Intraday Signal Generator - Configuration
+
+# Market & Region
+market:
+  region: "HK"  # HK, US, CN
+  timezone: "Asia/Hong_Kong"  # For HK; use America/New_York for US, Asia/Shanghai for CN
+
+# Watchlist
+watchlist:
+  # Sample symbols - replace with your actual watchlist
+  - "HK.00700"  # Tencent
+  - "HK.09988"  # Alibaba-SW
+  - "HK.00941"  # China Mobile
+  - "HK.01299"  # AIA
+
+# Timeframes for analysis
+timeframes:
+  - "60min"  # 1h
+  - "120min"  # 2h
+  - "240min"  # 4h
+
+# Historical data lookback (days)
+lookback_days: 90
+
+# Technical Indicators
+indicators:
+  tsi:
+    long: 25
+    short: 13
+    signal: 13
+  ewo:
+    fast: 5
+    slow: 35
+
+# Strategy Rules
+strategy:
+  # Long entry: TSI crosses above 0 AND EWO > 0
+  # Exit: TSI crosses below 0 OR EWO < 0
+  min_confidence: 0.5  # 0-1 scale
+  
+  # Optional filters
+  filters:
+    min_volume: 100000  # Minimum daily volume
+    use_ma_trend: false  # Require price > MA(50)
+
+# Fundamentals Whitelist
+fundamentals:
+  enabled: true
+  
+  # Liquidity gate (hard requirement)
+  liquidity:
+    min_turnover_amount: 50000000  # 50M in native currency (20-day avg)
+  
+  # Valuation gates
+  valuation:
+    pe_min: 0
+    pe_max: 60
+    pb_max: 10
+  
+  # Market-specific overrides
+  overrides:
+    US:
+      pe_max: 80
+    CN:
+      pe_max: 50
+      pb_max: 8
+  
+  # Size gate (market cap percentile within watchlist)
+  size:
+    min_percentile: 0.5  # 0-1; 0.5 = median or above
+  
+  # Composite scoring weights
+  scoring:
+    size_weight: 0.4
+    pe_weight: 0.3
+    pb_weight: 0.3
+    min_score: 0.5
+  
+  # Behavior when data is missing
+  missing_data_action: "pass"  # "pass" or "block"
+
+# Backtesting
+backtest:
+  initial_cash: 100000
+  fees: 0.001  # 0.1%
+  slippage: 0.001  # 0.1%
+  size: 0.1  # 10% of portfolio per trade
+  
+  # Output
+  output_dir: "backtest_results"
+  generate_html: true
+
+# Real-time Signal Runner
+realtime:
+  # Check intervals (seconds)
+  check_interval: 60
+  
+  # Market hours (local time in market timezone)
+  market_hours:
+    start: "09:30"
+    end: "16:00"
+    # Exclude lunch break for HK market
+    exclude_ranges:
+      - start: "12:00"
+        end: "13:00"
+  
+  # Cooldown to prevent duplicate signals
+  cooldown:
+    enabled: true
+    period_hours: 4  # Per symbol/timeframe/side
+  
+  # Signal output
+  log_to_file: true
+  log_file: "signals.log"
+
+# Notifications
+notifications:
+  serverchan:
+    enabled: true
+    title_template: "{side} {symbol} [{timeframe}]"
+    message_template: |
+      Signal: {side}
+      Symbol: {symbol}
+      Timeframe: {timeframe}
+      Price: {price:.2f}
+      Confidence: {confidence:.2f}
+      Reason: {reason}
+      Time: {timestamp}
