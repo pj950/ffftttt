@@ -46,38 +46,46 @@ strategy:
 # Fundamentals Whitelist
 fundamentals:
   enabled: true
+  gate_behavior_on_missing: pass  # "pass" or "block"
+  refresh: daily  # rebuild cache each trading day
   
-  # Liquidity gate (hard requirement)
-  liquidity:
-    min_turnover_amount: 50000000  # 50M in native currency (20-day avg)
-  
-  # Valuation gates
-  valuation:
-    pe_min: 0
-    pe_max: 60
-    pb_max: 10
-  
-  # Market-specific overrides
-  overrides:
-    US:
-      pe_max: 80
-    CN:
-      pe_max: 50
-      pb_max: 8
-  
-  # Size gate (market cap percentile within watchlist)
-  size:
-    min_percentile: 0.5  # 0-1; 0.5 = median or above
+  # Thresholds
+  thresholds:
+    # Liquidity gate (hard requirement)
+    liquidity:
+      metric: adtv_amount_native  # 20-day avg daily turnover amount in native currency
+      lookback_days: 20
+      min: 50000000  # 50M in native currency
+    
+    # Global valuation and size gates
+    global:
+      pe_min: 0
+      pe_max: 60
+      pb_max: 10
+      cap_percentile_min: 0.5  # top 50% by cap within watchlist
+    
+    # Market-specific overrides
+    overrides:
+      US:
+        pe_max: 50
+        pb_max: 12
+        cap_percentile_min: 0.6
+      HK:
+        pe_max: 60
+        pb_max: 10
+        cap_percentile_min: 0.5
+      CN:
+        pe_max: 80
+        pb_max: 12
+        cap_percentile_min: 0.5
   
   # Composite scoring weights
   scoring:
-    size_weight: 0.4
-    pe_weight: 0.3
-    pb_weight: 0.3
+    weights:
+      size: 0.4
+      pe: 0.3
+      pb: 0.3
     min_score: 0.5
-  
-  # Behavior when data is missing
-  missing_data_action: "pass"  # "pass" or "block"
 
 # Backtesting
 backtest:

@@ -1,12 +1,12 @@
-from typing import Dict
+from typing import Dict, List
 from src.fundamentals.provider_base import FundamentalsProvider
 
 
 class YFinanceFallbackProvider(FundamentalsProvider):
     """
-    Fallback provider using yfinance for US/HK stocks.
-    Note: This is a placeholder implementation.
-    Install yfinance separately if needed: pip install yfinance
+    Fallback provider using yfinance for US/HK/CN stocks when Futu data is missing.
+    Normalizes symbols for US/HK markets and fetches PE (trailing), PB, marketCap.
+    Estimates liquidity from volume * price when available.
     """
     
     def __init__(self):
@@ -22,6 +22,8 @@ class YFinanceFallbackProvider(FundamentalsProvider):
         Fetch basic metrics from Yahoo Finance.
         
         Returns dict with: pe, pb, market_cap, turnover_20d_avg, volume
+        PE is trailingPE (TTM equivalent)
+        turnover_20d_avg is estimated from 20-day avg volume * avg price
         """
         metrics = {
             "pe": None,
@@ -39,21 +41,40 @@ class YFinanceFallbackProvider(FundamentalsProvider):
             ticker = self.yf.Ticker(yf_symbol)
             info = ticker.info
             
+            # Fetch PE (trailing = TTM), PB, and market cap
             metrics["pe"] = info.get("trailingPE")
             metrics["pb"] = info.get("priceToBook")
             metrics["market_cap"] = info.get("marketCap")
             metrics["volume"] = info.get("volume")
             
+            # Estimate 20-day average daily turnover amount (volume * price)
             hist = ticker.history(period="1mo")
-            if not hist.empty and "Volume" in hist.columns:
-                avg_volume = hist["Volume"].tail(20).mean()
-                avg_price = hist["Close"].tail(20).mean()
-                metrics["turnover_20d_avg"] = avg_volume * avg_price
+            if not hist.empty and "Volume" in hist.columns and "Close" in hist.columns:
+                # Calculate daily turnover (volume * close price)
+                daily_turnover = hist["Volume"] * hist["Close"]
+                # Get 20-day average
+                metrics["turnover_20d_avg"] = daily_turnover.tail(20).mean()
             
         except Exception as e:
+            # Silent fail, returns None values
             pass
         
         return metrics
+    
+    def fetch_batch_metrics(self, symbols: List[str]) -> Dict[str, Dict]:
+        """
+        Fetch metrics for multiple symbols in batch.
+        
+        Args:
+            symbols: List of stock codes
+            
+        Returns:
+            Dictionary mapping symbol to metrics dict
+        """
+        result = {}
+        for symbol in symbols:
+            result[symbol] = self.fetch_basic_metrics(symbol)
+        return result
     
     def _convert_symbol(self, symbol: str) -> str:
         """
