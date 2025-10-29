@@ -24,6 +24,7 @@ lookback_days: 90
 
 # Technical Indicators
 indicators:
+  # Legacy TSI/EWO (kept for backward compatibility)
   tsi:
     long: 25
     short: 13
@@ -31,17 +32,97 @@ indicators:
   ewo:
     fast: 5
     slow: 35
+  
+  # New indicator list (registry-based)
+  list:
+    - name: supertrend
+      params:
+        atr_period: 10
+        multiplier: 3.0
+    
+    - name: hma
+      params:
+        period: 16
+        slope_period: 3
+    
+    - name: rsi
+      params:
+        period: 14
+        overbought: 70
+        oversold: 30
+    
+    - name: qqe
+      params:
+        rsi_period: 14
+        smoothing: 5
+        qqe_factor: 4.236
+    
+    - name: adx
+      params:
+        period: 14
+        threshold: 25
+    
+    - name: atr_percentile
+      params:
+        atr_period: 14
+        lookback: 100
+        min_percentile: 0.2
+        max_percentile: 0.85
 
 # Strategy Rules
 strategy:
-  # Long entry: TSI crosses above 0 AND EWO > 0
-  # Exit: TSI crosses below 0 OR EWO < 0
+  # Strategy type: "tsi_ewo" (legacy) or "fusion" (new extensible strategy)
+  type: "fusion"  # Change to "tsi_ewo" for legacy behavior
+  
+  # Fusion strategy configuration
+  fusion_mode: "rule_based"  # or "weighted"
+  
+  # Entry rules
+  entry_rules:
+    long_entry:
+      # Use predefined template: "supertrend_hma", "supertrend_qqe", "tsi_ewo"
+      template: "supertrend_hma"
+      # Or define custom rule:
+      # rule:
+      #   type: "and"
+      #   rules:
+      #     - type: "condition"
+      #       indicator: "ST_trend"
+      #       operator: "=="
+      #       value: 1
+      #     - type: "condition"
+      #       indicator: "HMA_slope"
+      #       operator: ">"
+      #       value: 0
+    
+    short_entry:
+      template: "supertrend_hma"
+  
+  # Exit rules
+  exit_rules:
+    long_exit:
+      template: "supertrend_hma"
+    
+    short_exit:
+      template: "supertrend_hma"
+  
+  # Confidence threshold
   min_confidence: 0.5  # 0-1 scale
   
   # Optional filters
   filters:
     min_volume: 100000  # Minimum daily volume
-    use_ma_trend: false  # Require price > MA(50)
+    use_atr_filter: true  # Filter by ATR percentile
+    use_adx_filter: false  # Require strong trend (ADX > threshold)
+  
+  # Weighted fusion (if fusion_mode: "weighted")
+  weights:
+    ST_trend: 0.3
+    HMA_slope: 0.2
+    RSI: 0.2
+    QQE_line: 0.15
+    ADX: 0.15
+  threshold: 0.5  # Signal threshold for weighted mode
 
 # Fundamentals Whitelist
 fundamentals:

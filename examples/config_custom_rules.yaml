@@ -1,0 +1,162 @@
+# Example: Custom Fusion Rules
+# This demonstrates how to define custom entry/exit rules without using templates
+
+market:
+  region: "US"
+  timezone: "America/New_York"
+
+watchlist:
+  - "US.AAPL"
+  - "US.MSFT"
+  - "US.GOOGL"
+
+timeframes:
+  - "60min"
+  - "240min"
+
+lookback_days: 90
+
+indicators:
+  list:
+    - name: supertrend
+      params:
+        atr_period: 10
+        multiplier: 3.0
+    
+    - name: hma
+      params:
+        period: 16
+        slope_period: 3
+    
+    - name: rsi
+      params:
+        period: 14
+    
+    - name: adx
+      params:
+        period: 14
+        threshold: 25
+
+strategy:
+  type: "fusion"
+  fusion_mode: "rule_based"
+  
+  entry_rules:
+    long_entry:
+      # Custom rule using AND/OR logic
+      rule:
+        type: "and"  # All conditions must be true
+        rules:
+          # Condition 1: SuperTrend is in uptrend
+          - type: "condition"
+            indicator: "ST_trend"
+            operator: "=="
+            value: 1
+          
+          # Condition 2: Either HMA slope positive OR RSI bullish
+          - type: "or"
+            rules:
+              - type: "condition"
+                indicator: "HMA_slope"
+                operator: ">"
+                value: 0
+              
+              - type: "condition"
+                indicator: "RSI"
+                operator: ">"
+                value: 55
+          
+          # Condition 3: Strong trend (ADX > 25)
+          - type: "condition"
+            indicator: "ADX_strong"
+            operator: "=="
+            value: true
+    
+    short_entry:
+      rule:
+        type: "and"
+        rules:
+          - type: "condition"
+            indicator: "ST_trend"
+            operator: "=="
+            value: -1
+          
+          - type: "or"
+            rules:
+              - type: "condition"
+                indicator: "HMA_slope"
+                operator: "<"
+                value: 0
+              
+              - type: "condition"
+                indicator: "RSI"
+                operator: "<"
+                value: 45
+          
+          - type: "condition"
+            indicator: "ADX_strong"
+            operator: "=="
+            value: true
+  
+  exit_rules:
+    long_exit:
+      rule:
+        type: "or"  # Any condition triggers exit
+        rules:
+          - type: "condition"
+            indicator: "ST_flip_down"
+            operator: "=="
+            value: true
+          
+          - type: "condition"
+            indicator: "RSI"
+            operator: "<"
+            value: 40
+    
+    short_exit:
+      rule:
+        type: "or"
+        rules:
+          - type: "condition"
+            indicator: "ST_flip_up"
+            operator: "=="
+            value: true
+          
+          - type: "condition"
+            indicator: "RSI"
+            operator: ">"
+            value: 60
+  
+  min_confidence: 0.5
+  
+  filters:
+    min_volume: 500000
+    use_atr_filter: false
+    use_adx_filter: true  # ADX filter already in rules
+
+fundamentals:
+  enabled: false  # Disabled for US example
+
+backtest:
+  initial_cash: 100000
+  fees: 0.001
+  slippage: 0.001
+  size: 0.15  # 15% per trade
+  output_dir: "backtest_results"
+  generate_html: true
+
+realtime:
+  check_interval: 60
+  market_hours:
+    start: "09:30"
+    end: "16:00"
+    exclude_ranges: []  # No lunch break for US
+  cooldown:
+    enabled: true
+    period_hours: 6
+  log_to_file: true
+  log_file: "signals_us.log"
+
+notifications:
+  serverchan:
+    enabled: true
