@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -17,10 +17,11 @@ class TSIEWOStrategy:
         - SHORT exit: TSI crosses above 0 OR EWO > 0
     """
     
-    def __init__(self, config: Dict):
+    def __init__(self, config: Dict, fundamentals_manager=None):
         self.config = config
         self.min_confidence = config.get("min_confidence", 0.5)
         self.filters = config.get("filters", {})
+        self.fundamentals_manager = fundamentals_manager
     
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -130,6 +131,35 @@ class TSIEWOStrategy:
         
         return ", ".join(reasons)
     
+    def check_fundamentals_gate(self, symbol: str) -> Tuple[bool, str]:
+        """
+        Check if symbol passes fundamentals whitelist.
+        
+        Args:
+            symbol: Stock symbol to check
+            
+        Returns:
+            Tuple of (passes, reason)
+        """
+        if not self.fundamentals_manager:
+            return True, "fundamentals_not_configured"
+        
+        if not self.fundamentals_manager.enabled:
+            return True, "fundamentals_disabled"
+        
+        # Get all symbols to build context for percentile calculation
+        # In real usage, this would come from the watchlist
+        symbols = [symbol]
+        
+        whitelisted, results = self.fundamentals_manager.build_whitelist(symbols)
+        
+        if symbol in results:
+            passes, reason, score = results[symbol]
+            if not passes:
+                return False, f"fundamentals_gate_failed:{reason}"
+        
+        return True, "fundamentals_passed"
+    
     def extract_latest_signals(
         self,
         df: pd.DataFrame,
@@ -138,12 +168,28 @@ class TSIEWOStrategy:
     ) -> List[Dict]:
         """
         Extract the latest signals from a DataFrame.
+        Applies fundamentals whitelist if configured.
         
         Returns:
             List of signal dictionaries
         """
         if df.empty:
             return []
+        
+        # Check fundamentals gate first if enabled
+        if self.fundamentals_manager and self.fundamentals_manager.enabled:
+            passes, reason = self.check_fundamentals_gate(symbol)
+            if not passes:
+                # Return suppressed signal with reason
+                return [{
+                    "timestamp": datetime.now(),
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "side": "SUPPRESSED",
+                    "price": 0,
+                    "confidence": 0,
+                    "reason": reason,
+                }]
         
         signals = []
         

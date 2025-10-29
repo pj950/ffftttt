@@ -219,29 +219,79 @@ By default, all symbols must pass fundamentals checks before generating signals:
 3. **Size Gate**: Market cap percentile ≥ 50% within watchlist
 4. **Composite Score**: Weighted score ≥ 0.5
 
+### Data Sources
+
+- **Primary**: Futu snapshot and day bars (PE_TTM, PB, MktCap, daily turnover amount)
+- **Fallback**: yfinance for US/HK when Futu fields are missing
+
+### Configuration
+
 Configure in `config.yaml`:
 
 ```yaml
 fundamentals:
   enabled: true
-  liquidity:
-    min_turnover_amount: 50000000
-  valuation:
-    pe_min: 0
-    pe_max: 60
-    pb_max: 10
-  overrides:
-    US:
-      pe_max: 80
-  size:
-    min_percentile: 0.5
+  gate_behavior_on_missing: pass  # "pass" or "block"
+  refresh: daily  # rebuild cache each trading day
+  
+  thresholds:
+    liquidity:
+      metric: adtv_amount_native
+      lookback_days: 20
+      min: 50000000  # 50M in native currency
+    
+    global:
+      pe_min: 0
+      pe_max: 60
+      pb_max: 10
+      cap_percentile_min: 0.5  # top 50% by cap
+    
+    overrides:
+      US:
+        pe_max: 50
+        pb_max: 12
+        cap_percentile_min: 0.6
+      HK:
+        pe_max: 60
+        pb_max: 10
+        cap_percentile_min: 0.5
+      CN:
+        pe_max: 80
+        pb_max: 12
+        cap_percentile_min: 0.5
+  
   scoring:
-    size_weight: 0.4
-    pe_weight: 0.3
-    pb_weight: 0.3
+    weights:
+      size: 0.4
+      pe: 0.3
+      pb: 0.3
     min_score: 0.5
-  missing_data_action: "pass"  # or "block"
 ```
+
+### Scoring Formula
+
+- **PE Score**: `clamp((pe_max - PE) / pe_max, 0, 1)`
+- **PB Score**: `clamp((pb_max - PB) / pb_max, 0, 1)`
+- **Size Score**: Market cap percentile within watchlist
+- **Composite Score**: `0.4 × Size + 0.3 × PE + 0.3 × PB`
+
+Lower PE and PB ratios result in higher scores. The composite score must meet the minimum threshold (default: 0.5).
+
+### Pre-building Cache
+
+You can pre-build the fundamentals cache before running the signal generator:
+
+```bash
+python -m src.fundamentals.refresh --config src/config/config.yaml
+```
+
+This will:
+- Fetch fundamentals data for all watchlist symbols
+- Apply the scoring and gating logic
+- Save results to `cache/fundamentals_{YYYYMMDD}.json`
+- Display which symbols passed/failed and why
+
+Cache files are automatically used by the signal generator when fresh.
 
 ## Strategy Details
 

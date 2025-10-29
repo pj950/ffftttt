@@ -56,6 +56,9 @@ backtest_results/
 *.log
 logs/
 
+# Cache
+cache/
+
 # OS
 .DS_Store
 Thumbs.db
