@@ -1,32 +1,67 @@
-# Futu Intraday TSI/EWO Signal Generator
+# Futu Intraday Signal Generator with Extensible Indicators
 
-A half-automatic intraday trading signal generator for stocks via Futu OpenAPI. Computes technical signals (TSI, EWO) on 1h/2h/4h bars, backtests with vectorbt, and pushes real-time signals to WeChat via Server酱 (ServerChan). No order placement - signals only.
+A half-automatic intraday trading signal generator for stocks via Futu OpenAPI. Features a pluggable indicator registry, fusion strategy system, and support for multiple technical indicators (TSI/EWO/SuperTrend/HMA/QQE/ADX). Includes backtesting with vectorbt and real-time signal delivery via WeChat. No order placement - signals only.
 
 ## Features
 
+### 🎯 Core System
 - **Data Adapter**: Futu OpenD client to pull intraday candles and resample to 1h/2h/4h timeframes
-- **Technical Indicators**: 
-  - TSI (True Strength Index)
-  - EWO (Elliott Wave Oscillator)
-  - Configurable parameters
-- **Strategy Rules**:
-  - LONG entry: TSI crosses above 0 AND EWO > 0
-  - LONG exit: TSI crosses below 0 OR EWO < 0
-  - Confidence scoring based on indicator strength
-- **Fundamentals Whitelist**:
-  - Liquidity gate: 20-day avg daily turnover ≥ 50M
-  - Valuation gates: 0 < PE ≤ 60, PB ≤ 10 (configurable per market)
-  - Size gate: Market cap percentile ≥ 50%
-  - Composite scoring with configurable weights
-- **Backtesting**: 
-  - vectorbt-based pipeline
-  - Metrics: CAGR, Sharpe, Win Rate, Max DD, Calmar
-  - Configurable fees and slippage
-- **Real-time Runner**:
-  - Market hours aware (with lunch break exclusions)
-  - Signal deduplication with cooldown periods
-  - JSON output to stdout and log file
-- **Notifications**: Server酱 integration for WeChat alerts
+- **Extensible Indicator Registry**: 
+  - Dynamic loading and registration of indicators
+  - Config-driven parameters
+  - Easy to add new indicators (see [INDICATOR_GUIDE.md](INDICATOR_GUIDE.md))
+- **Fusion Strategy System**:
+  - Rule-based fusion (AND/OR/threshold conditions)
+  - Weighted fusion (configurable indicator weights)
+  - Predefined templates: SuperTrend+HMA, SuperTrend+QQE, TSI+EWO
+  - Custom rule definitions in YAML
+
+### 📊 Technical Indicators
+- **SuperTrend**: ATR-based trend following with trailing stops
+- **Hull Moving Average (HMA)**: Fast, smooth MA with slope detection
+- **QQE (Quantitative Qualitative Estimation)**: RSI-based with signal line
+- **ADX**: Trend strength filter
+- **ATR Percentile**: Volatility regime filter (0.2-0.85 range)
+- **RSI**: Relative Strength Index
+- **TSI**: True Strength Index (legacy support)
+- **EWO**: Elliott Wave Oscillator (legacy support)
+
+### 🔍 Strategy Features
+- **Entry Templates**:
+  - SuperTrend+HMA: `ST_trend=up AND HMA_slope>0 AND RSI>50`
+  - SuperTrend+QQE: `ST_trend=up AND QQE>signal AND ADX>25`
+  - TSI+EWO: `TSI crosses 0 AND EWO>0` (legacy)
+- **Exit Conditions**:
+  - SuperTrend flips, ATR trailing stops, RSI thresholds, time-based exits
+- **Regime Filters**:
+  - ATR percentile filter (avoid extreme volatility)
+  - ADX trend strength requirement
+  - Volume filters
+- **Confidence Scoring**: Multi-factor confidence calculation per signal
+
+### 📈 Fundamentals Whitelist
+- Liquidity gate: 20-day avg daily turnover ≥ 50M
+- Valuation gates: 0 < PE ≤ 60, PB ≤ 10 (configurable per market)
+- Size gate: Market cap percentile ≥ 50%
+- Composite scoring with configurable weights
+
+### 🧪 Backtesting & Analysis
+- vectorbt-based pipeline with comparison framework
+- **Comparison Backtests**: Test multiple indicator suites side-by-side
+- **Signal Lag Metrics**: Measure response time to price movements
+- Metrics: CAGR, Sharpe, Win Rate, Max DD, Calmar, Profit Factor
+- Walk-forward validation support
+- HTML and CSV reports with improvement analysis
+
+### 🔄 Real-time Runner
+- Market hours aware (with lunch break exclusions)
+- Signal deduplication with cooldown periods
+- Supports both legacy and fusion strategies
+- JSON output to stdout and log file
+- Fundamentals gating preserved
+
+### 📱 Notifications
+- Server酱 integration for WeChat alerts
 
 ## Tech Stack
 
@@ -41,30 +76,42 @@ A half-automatic intraday trading signal generator for stocks via Futu OpenAPI. 
 .
 ├── src/
 │   ├── config/
-│   │   └── config.yaml           # Main configuration file
+│   │   └── config.yaml              # Main configuration file
 │   ├── data/
-│   │   └── futu_client.py        # Futu OpenD client wrapper
+│   │   └── futu_client.py           # Futu OpenD client wrapper
 │   ├── indicators/
-│   │   └── tsi_ewo.py            # TSI and EWO indicators
+│   │   ├── registry.py              # Indicator registry system
+│   │   ├── supertrend.py            # SuperTrend indicator
+│   │   ├── hma.py                   # Hull Moving Average
+│   │   ├── qqe.py                   # QQE indicator
+│   │   ├── adx.py                   # ADX trend strength
+│   │   ├── atr_percentile.py        # ATR volatility filter
+│   │   ├── rsi.py                   # RSI indicator
+│   │   ├── tsi.py                   # TSI (registry wrapper)
+│   │   ├── ewo.py                   # EWO (registry wrapper)
+│   │   └── tsi_ewo.py               # Legacy TSI/EWO functions
 │   ├── strategies/
-│   │   └── tsi_ewo_strategy.py   # Signal generation logic
+│   │   ├── fusion.py                # Extensible fusion strategy
+│   │   └── tsi_ewo_strategy.py      # Legacy TSI/EWO strategy
 │   ├── backtest/
-│   │   └── run_backtest.py       # Backtesting pipeline
+│   │   ├── run_backtest.py          # Basic backtesting
+│   │   └── comparison.py            # Multi-strategy comparison
 │   ├── realtime/
-│   │   └── signal_runner.py      # Real-time signal generator
+│   │   └── signal_runner.py         # Real-time signal generator
 │   ├── notify/
-│   │   └── serverchan.py         # Server酱 notifier
+│   │   └── serverchan.py            # Server酱 notifier
 │   └── fundamentals/
-│       ├── provider_base.py      # Fundamentals provider interface
+│       ├── provider_base.py         # Fundamentals provider interface
 │       ├── providers/
-│       │   ├── futu_snapshot.py  # Futu data provider
-│       │   └── yfinance_fallback.py  # Yahoo Finance fallback
-│       └── scoring.py            # Fundamentals scoring/gating
+│       │   ├── futu_snapshot.py     # Futu data provider
+│       │   └── yfinance_fallback.py # Yahoo Finance fallback
+│       └── scoring.py               # Fundamentals scoring/gating
 ├── tests/
-│   ├── test_tsi_ewo.py           # Indicator tests
-│   └── test_fundamentals_scoring.py  # Fundamentals tests
+│   ├── test_tsi_ewo.py              # Indicator tests
+│   └── test_fundamentals_scoring.py # Fundamentals tests
 ├── scripts/
-│   └── bootstrap_env.sh          # Environment setup script
+│   └── bootstrap_env.sh             # Environment setup script
+├── INDICATOR_GUIDE.md               # How to add indicators/fusion rules
 ├── requirements.txt
 └── README.md
 ```
@@ -143,7 +190,37 @@ Before running the signal generator:
 
 ## Usage
 
+### Quick Start: Using New Fusion Strategy
+
+1. **Configure Strategy** - Edit `src/config/config.yaml`:
+
+```yaml
+strategy:
+  type: "fusion"  # Use new fusion system
+  fusion_mode: "rule_based"
+  
+  entry_rules:
+    long_entry:
+      template: "supertrend_hma"  # or "supertrend_qqe"
+```
+
+2. **Run Comparison Backtest**:
+
+```bash
+python -m src.backtest.comparison --config src/config/config.yaml
+```
+
+This will test TSI/EWO vs new fusion strategies and generate a comparison report.
+
+3. **Run Real-time Signals**:
+
+```bash
+python -m src.realtime.signal_runner --config src/config/config.yaml
+```
+
 ### Backtesting
+
+#### Basic Backtest
 
 Run historical backtests on your watchlist:
 
@@ -156,6 +233,32 @@ Output:
 - CSV report in `backtest_results/backtest_results_YYYYMMDD_HHMMSS.csv`
 - HTML report (if enabled in config)
 
+#### Comparison Backtest
+
+Compare multiple indicator suites:
+
+```bash
+python -m src.backtest.comparison --config src/config/config.yaml
+```
+
+This will:
+- Test legacy TSI/EWO strategy
+- Test SuperTrend+HMA fusion
+- Test SuperTrend+QQE fusion
+- Calculate signal lag metrics
+- Generate improvement analysis
+- Output: `comparison_YYYYMMDD_HHMMSS.csv` and `.html`
+
+Example output:
+```
+IMPROVEMENTS vs TSI/EWO
+================================================================
+fusion_supertrend_hma:
+  total_return: 📈 +5.23 (+15.2%)
+  sharpe_ratio: 📈 +0.31 (+22.1%)
+  signal_lag: ⚡ -2.30 bars (+38.3% faster)
+```
+
 ### Real-time Signal Generation
 
 Run the signal generator during market hours:
@@ -166,7 +269,8 @@ python -m src.realtime.signal_runner --config src/config/config.yaml
 
 The runner will:
 - Check if market is open (respecting configured hours and lunch breaks)
-- Fetch latest data and compute indicators
+- Fetch latest data and compute indicators via registry
+- Apply fusion strategy rules
 - Apply fundamentals whitelist
 - Generate and emit signals (with cooldown to prevent duplicates)
 - Send notifications via Server酱
@@ -176,6 +280,13 @@ For testing (run once and exit):
 
 ```bash
 python -m src.realtime.signal_runner --config src/config/config.yaml --once
+```
+
+**Legacy Mode**: To use the original TSI/EWO strategy:
+
+```yaml
+strategy:
+  type: "tsi_ewo"  # Legacy mode
 ```
 
 ### Running Tests
@@ -438,34 +549,73 @@ If fundamentals checks are failing:
 
 ## Advanced Usage
 
-### Custom Indicators
+### Adding Custom Indicators
 
-Add new indicators in `src/indicators/tsi_ewo.py`:
+The new registry system makes it easy to add indicators. See [INDICATOR_GUIDE.md](INDICATOR_GUIDE.md) for details.
+
+**Quick example**:
+
+1. Create `src/indicators/my_indicator.py`:
 
 ```python
-def calculate_custom_indicator(close: pd.Series, period: int) -> pd.Series:
-    # Your implementation
-    return result
+from src.indicators.registry import BaseIndicator, register_indicator
+
+@register_indicator("my_indicator")
+class MyIndicator(BaseIndicator):
+    def __init__(self, period: int = 20, **kwargs):
+        super().__init__(period=period, **kwargs)
+        self.period = period
+    
+    @property
+    def name(self) -> str:
+        return "my_indicator"
+    
+    def calculate(self, df: pd.DataFrame) -> pd.DataFrame:
+        df_copy = df.copy()
+        # Your calculation here
+        df_copy["MY_IND"] = ...
+        return df_copy
+    
+    def get_signal_columns(self) -> List[str]:
+        return ["MY_IND"]
 ```
 
-Update `add_all_indicators()` to include your indicator.
+2. Add to `config.yaml`:
 
-### Custom Signal Rules
+```yaml
+indicators:
+  list:
+    - name: my_indicator
+      params:
+        period: 20
+```
 
-Modify `src/strategies/tsi_ewo_strategy.py`:
+3. Use in fusion rules:
+
+```yaml
+strategy:
+  entry_rules:
+    long_entry:
+      rule:
+        type: "condition"
+        indicator: "MY_IND"
+        operator: ">"
+        value: 0
+```
+
+That's it! No need to modify existing code.
+
+### Creating Custom Fusion Templates
+
+Add new templates in `src/strategies/fusion.py`:
 
 ```python
-def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
-    df_copy = df.copy()
-    
-    # Add your custom rules
-    df_copy["long_entry"] = (
-        df_copy["TSI_crossover"] &
-        (df_copy["EWO"] > 0) &
-        (df_copy["custom_indicator"] > threshold)
-    )
-    
-    return df_copy
+elif template == "my_custom_template":
+    if side == "long_entry":
+        return (
+            row.get("indicator1", 0) > threshold1 and
+            row.get("indicator2", False)
+        )
 ```
 
 ### Multiple Watchlists
@@ -473,9 +623,23 @@ def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
 Create separate config files for different watchlists:
 
 ```bash
-python -m src.backtest.run_backtest --config config/hk_large_cap.yaml
+python -m src.backtest.comparison --config config/hk_large_cap.yaml
 python -m src.realtime.signal_runner --config config/us_tech.yaml
 ```
+
+### Parameter Optimization
+
+Use the comparison backtest to test different parameter combinations:
+
+```bash
+# Test different SuperTrend periods
+# Edit config, change atr_period: 7, 10, 14
+python -m src.backtest.comparison --config src/config/config.yaml
+
+# Compare results and choose best parameters
+```
+
+For more sophisticated optimization, consider using vectorbt's parameter optimization features or implementing a grid search in `src/backtest/comparison.py`.
 
 ## Performance Notes
 

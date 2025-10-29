@@ -1,0 +1,177 @@
+# Example: Fusion Strategy with SuperTrend + HMA + RSI
+# This configuration demonstrates the new indicator registry and fusion system
+
+# Market & Region
+market:
+  region: "HK"
+  timezone: "Asia/Hong_Kong"
+
+# Watchlist - Example symbols
+watchlist:
+  - "HK.00700"  # Tencent
+  - "HK.09988"  # Alibaba-SW
+  - "HK.03690"  # Meituan
+
+# Timeframes for analysis
+timeframes:
+  - "60min"   # 1h
+  - "120min"  # 2h
+
+# Historical data lookback (days)
+lookback_days: 90
+
+# Technical Indicators - Registry-based
+indicators:
+  list:
+    # SuperTrend: ATR-based trend following
+    - name: supertrend
+      params:
+        atr_period: 10      # Period for ATR calculation
+        multiplier: 3.0     # Multiplier for bands (higher = less sensitive)
+    
+    # Hull Moving Average: Fast, smooth MA with slope
+    - name: hma
+      params:
+        period: 16          # HMA period
+        slope_period: 3     # Period for slope calculation
+    
+    # RSI: Relative Strength Index
+    - name: rsi
+      params:
+        period: 14
+        overbought: 70
+        oversold: 30
+    
+    # QQE: Alternative momentum indicator
+    - name: qqe
+      params:
+        rsi_period: 14
+        smoothing: 5
+        qqe_factor: 4.236
+    
+    # ADX: Trend strength filter
+    - name: adx
+      params:
+        period: 14
+        threshold: 25       # Above 25 = strong trend
+    
+    # ATR Percentile: Volatility regime filter
+    - name: atr_percentile
+      params:
+        atr_period: 14
+        lookback: 100
+        min_percentile: 0.2   # Avoid extremely low volatility
+        max_percentile: 0.85  # Avoid extremely high volatility
+
+# Strategy Rules - Fusion Strategy
+strategy:
+  type: "fusion"  # Use new fusion system (change to "tsi_ewo" for legacy)
+  
+  # Fusion mode: "rule_based" or "weighted"
+  fusion_mode: "rule_based"
+  
+  # Entry rules
+  entry_rules:
+    long_entry:
+      # Use predefined template
+      template: "supertrend_hma"
+      # Template logic:
+      #   - SuperTrend trend = up (1)
+      #   - HMA slope > 0 (upward)
+      #   - RSI > 50 (bullish)
+    
+    short_entry:
+      template: "supertrend_hma"
+      # Template logic:
+      #   - SuperTrend trend = down (-1)
+      #   - HMA slope < 0 (downward)
+      #   - RSI < 50 (bearish)
+  
+  # Exit rules
+  exit_rules:
+    long_exit:
+      template: "supertrend_hma"
+      # Template logic:
+      #   - SuperTrend flips down OR
+      #   - RSI < 45
+    
+    short_exit:
+      template: "supertrend_hma"
+      # Template logic:
+      #   - SuperTrend flips up OR
+      #   - RSI > 55
+  
+  # Minimum confidence threshold (0-1)
+  min_confidence: 0.5
+  
+  # Optional filters
+  filters:
+    min_volume: 100000         # Minimum daily volume
+    use_atr_filter: true       # Filter by ATR percentile (avoid extreme volatility)
+    use_adx_filter: false      # Require strong trend (ADX > threshold)
+
+# Fundamentals Whitelist
+fundamentals:
+  enabled: true
+  gate_behavior_on_missing: pass
+  
+  thresholds:
+    liquidity:
+      metric: adtv_amount_native
+      lookback_days: 20
+      min: 50000000  # 50M HKD
+    
+    global:
+      pe_min: 0
+      pe_max: 60
+      pb_max: 10
+      cap_percentile_min: 0.5
+  
+  scoring:
+    weights:
+      size: 0.4
+      pe: 0.3
+      pb: 0.3
+    min_score: 0.5
+
+# Backtesting
+backtest:
+  initial_cash: 100000
+  fees: 0.001      # 0.1%
+  slippage: 0.001  # 0.1%
+  size: 0.1        # 10% of portfolio per trade
+  
+  output_dir: "backtest_results"
+  generate_html: true
+
+# Real-time Signal Runner
+realtime:
+  check_interval: 60
+  
+  market_hours:
+    start: "09:30"
+    end: "16:00"
+    exclude_ranges:
+      - start: "12:00"
+        end: "13:00"
+  
+  cooldown:
+    enabled: true
+    period_hours: 4
+  
+  log_to_file: true
+  log_file: "signals.log"
+
+# Notifications
+notifications:
+  serverchan:
+    enabled: true
+    title_template: "{side} {symbol} [{timeframe}]"
+    message_template: |
+      Signal: {side}
+      Symbol: {symbol}
+      Timeframe: {timeframe}
+      Price: {price:.2f}
+      Confidence: {confidence:.2f}
+      Reason: {reason}
+      Time: {timestamp}

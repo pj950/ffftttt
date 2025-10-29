@@ -13,7 +13,9 @@ from dotenv import load_dotenv
 
 from src.data.futu_client import FutuClient
 from src.indicators.tsi_ewo import add_all_indicators
+from src.indicators import get_registry, load_indicators_from_config
 from src.strategies.tsi_ewo_strategy import TSIEWOStrategy
+from src.strategies.fusion import FusionStrategy
 from src.notify.serverchan import ServerChanNotifier
 from src.fundamentals.providers.futu_snapshot import FutuSnapshotProvider
 from src.fundamentals.scoring import FundamentalsScorer
@@ -71,7 +73,13 @@ class SignalRunner:
         self.futu_client.connect()
         
         strategy_config = self.config.get("strategy", {})
-        self.strategy = TSIEWOStrategy(strategy_config)
+        strategy_type = strategy_config.get("type", "tsi_ewo")
+        
+        # Initialize strategy based on type
+        if strategy_type == "fusion":
+            self.strategy = FusionStrategy(strategy_config)
+        else:
+            self.strategy = TSIEWOStrategy(strategy_config)
         
         notification_config = self.config.get("notifications", {}).get("serverchan", {})
         if notification_config.get("enabled", True):
@@ -211,18 +219,28 @@ class SignalRunner:
         if df_resampled.empty or len(df_resampled) < 50:
             return []
         
-        indicator_config = self.config.get("indicators", {})
-        tsi_config = indicator_config.get("tsi", {})
-        ewo_config = indicator_config.get("ewo", {})
+        strategy_type = self.config.get("strategy", {}).get("type", "tsi_ewo")
         
-        df_with_indicators = add_all_indicators(
-            df_resampled,
-            tsi_long=tsi_config.get("long", 25),
-            tsi_short=tsi_config.get("short", 13),
-            tsi_signal=tsi_config.get("signal", 13),
-            ewo_fast=ewo_config.get("fast", 5),
-            ewo_slow=ewo_config.get("slow", 35),
-        )
+        # Calculate indicators based on strategy type
+        if strategy_type == "fusion":
+            # Use registry-based indicator calculation
+            indicator_configs = load_indicators_from_config(self.config)
+            registry = get_registry()
+            df_with_indicators = registry.calculate_all(df_resampled, indicator_configs)
+        else:
+            # Legacy TSI/EWO indicators
+            indicator_config = self.config.get("indicators", {})
+            tsi_config = indicator_config.get("tsi", {})
+            ewo_config = indicator_config.get("ewo", {})
+            
+            df_with_indicators = add_all_indicators(
+                df_resampled,
+                tsi_long=tsi_config.get("long", 25),
+                tsi_short=tsi_config.get("short", 13),
+                tsi_signal=tsi_config.get("signal", 13),
+                ewo_fast=ewo_config.get("fast", 5),
+                ewo_slow=ewo_config.get("slow", 35),
+            )
         
         df_with_signals = self.strategy.generate_signals(df_with_indicators)
         
